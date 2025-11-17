@@ -1,4 +1,5 @@
 require "joshleblanc/drecs/drecs"
+require "app/entity_manager"
 require "app/game"
 
 def tick(args)
