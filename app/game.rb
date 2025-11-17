@@ -21,14 +21,28 @@ class Game
     process_timer
 
     handle_input
+    reveal_tiles
     render_static_map_stuff
     render_timer
 
     handle_state_change
   end
 
+  def reveal_tiles 
+    _, _, pos_a = args.state.entities.first_entity(:player, :position)
+
+    args.state.entities.each_entity(:position) do |id, pos_b|
+      next if args.state.entities.has_component?(id, :revealed)
+
+      p "#{(pos_a.x - pos_b.x).abs}, #{(pos_a.y - pos_b.y).abs}"
+      if (pos_a.x - pos_b.x).abs < 2 && (pos_a.y - pos_b.y).abs < 2
+        args.state.entities.add_component(id, :revealed, true)
+      end
+    end
+  end
+
   def render_static_map_stuff
-    args.state.entities.each_entity(:position, :char) do |_, pos, char|
+    args.state.entities.each_entity(:position, :char, :revealed) do |_, pos, char, revealed|
       args.outputs.labels << {
         x: pos.x * ENTITY_W,
         y: pos.y * ENTITY_H,
