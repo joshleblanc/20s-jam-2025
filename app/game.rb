@@ -34,7 +34,6 @@ class Game
     args.state.entities.each_entity(:position) do |id, pos_b|
       next if args.state.entities.has_component?(id, :revealed)
 
-      p "#{(pos_a.x - pos_b.x).abs}, #{(pos_a.y - pos_b.y).abs}"
       if (pos_a.x - pos_b.x).abs < 2 && (pos_a.y - pos_b.y).abs < 2
         args.state.entities.add_component(id, :revealed, true)
       end
@@ -112,7 +111,7 @@ class Game
     y_change = args.inputs.up_down
 
 
-    if (x_change != 0 || y_change != 0) && !pos_changed
+    if (x_change != 0 || y_change != 0) && !pos_changed && can_move?(pos.x + x_change, pos.y + y_change)
       pos.x += x_change
       pos.y += y_change
       args.state.entities << {
@@ -121,7 +120,15 @@ class Game
     elsif x_change == 0 && y_change == 0 && pos_changed
       args.state.entities.destroy(pos_changed.first)
     end
-    
+  end
+
+  def can_move?(x, y)
+    args.state.entities.each_entity(:position, :char) do |_, pos, char|
+      if char == "#" && pos.x == x && pos.y == y
+        return false
+      end 
+    end
+    true
   end
 
   def spawn_map(room)
