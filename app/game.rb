@@ -13,6 +13,7 @@ class Game
   ENTITY_W = 32
   ENTITY_H = 64
   include EntityManager
+  include Effects
 
   attr_gtk
 
@@ -21,11 +22,46 @@ class Game
     process_timer
 
     handle_input
+    process_hit
     reveal_tiles
     render_static_map_stuff
     render_timer
 
     handle_state_change
+
+    process_screen_shake  
+    render_target
+  end
+
+  def process_hit
+    player, _, pos_a, last_pos = args.state.entities.first_entity(:player, :position, :last_position)
+    return unless player
+
+    args.state.entities.each_entity(:position, :char) do |id, pos_b, char|
+      next if id == player
+      next unless pos_b.x == pos_a.x && pos_b.y == pos_a.y
+
+      if char == "T" 
+        screen_shake(2, 10)
+        pos_a.x = last_pos.x
+        pos_a.y = last_pos.y
+      end
+    end
+
+  end
+
+  def render_target 
+    _, shake = args.state.entities.first_entity(:screen_shake)
+    x = 0 
+    y = 0 
+    if shake 
+     x = shake.offset_x
+     y = shake.offset_y
+    end
+    args.outputs.sprites << {
+      x: x, y: y, w: 1280, h: 720,
+      path: :world
+    }
   end
 
   def reveal_tiles 
@@ -42,7 +78,7 @@ class Game
 
   def render_static_map_stuff
     args.state.entities.each_entity(:position, :char, :revealed) do |_, pos, char, revealed|
-      args.outputs.labels << {
+      args.outputs[:world].labels << {
         x: pos.x * ENTITY_W,
         y: pos.y * ENTITY_H,
         text: char,
@@ -61,7 +97,7 @@ class Game
       args.outputs.debug << timer.time_remaining.to_s
       tw,th = args.gtk.calcstringbox(timer.time_remaining.to_s, 4)
 
-      args.outputs.labels << { 
+      args.outputs[:world].labels << { 
         x: (1280 / 2) + (tw / 2),
         y: th.from_top,
         alignment_enum: 0,
@@ -105,13 +141,15 @@ class Game
     pos_changed = args.state.entities.first_entity(:position_changed)
 
     args.outputs.debug << pos_changed.to_s
-    _, _, pos = args.state.entities.first_entity(:player, :position) 
+    player, _, pos, last_pos = args.state.entities.first_entity(:player, :position, :last_position) 
 
     x_change = args.inputs.left_right
     y_change = args.inputs.up_down
 
 
     if (x_change != 0 || y_change != 0) && !pos_changed && can_move?(pos.x + x_change, pos.y + y_change)
+      last_pos.x = pos.x
+      last_pos.y = pos.y
       pos.x += x_change
       pos.y += y_change
       args.state.entities << {

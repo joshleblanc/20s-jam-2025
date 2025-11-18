@@ -9,7 +9,7 @@ module EntityManager
   end
   
   def spawn_player(x, y)
-    spawn_entity(x, y, "@", :player, { player: true })
+    spawn_entity(x, y, "@", :player, { player: true, last_position: { x: x, y: y } })
   end
 
   def spawn_wall(x, y)

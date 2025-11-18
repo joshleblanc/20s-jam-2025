@@ -1,4 +1,5 @@
 require "joshleblanc/drecs/drecs"
+require "app/effects"
 require "app/entity_manager"
 require "app/game"
 
