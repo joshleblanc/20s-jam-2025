@@ -15,7 +15,7 @@
 ROOMS = [
   [
     "################",
-    "#....s.........#",
+    "#....s......t..#",
     "#..@...........#",
     "#.......k....>.#",
     "#....T.........#",
@@ -47,6 +47,7 @@ class Game
     render_target
     render_health
     render_inventory
+    render_score
   end
 
   def process_hit
@@ -64,6 +65,10 @@ class Game
         _, inventory = args.state.entities.first_entity(:inventory)
         args.state.entities.destroy(id)
         inventory << :key
+      elsif char == "t"
+        _, score = args.state.entities.first_entity(:score)
+        score.amt += 1
+        args.state.entities.destroy(id)
       end
     end
 
@@ -93,6 +98,25 @@ class Game
       text: "Health: #{health.amt}",
       size_enum: 2,
       r: 255,
+      g: 0,
+      b: 0,
+      alignment_enum: 0,
+      vertical_alignment_enum: 2
+    }
+  end
+
+  def render_score
+    id, score = args.state.entities.first_entity(:score)
+    return unless id
+
+    text = "Score: #{score.amt}"
+    tw, th = args.gtk.calcstringbox(text, 2)
+    args.outputs[:world].labels << {
+      x: 640,
+      y: 0.from_top - (th * 2),
+      text: text,
+      size_enum: 2,
+      r: 0,
       g: 0,
       b: 0,
       alignment_enum: 0,
