@@ -45,6 +45,7 @@ class Game
 
     process_screen_shake  
     render_target
+    render_health
   end
 
   def process_hit
@@ -57,12 +58,41 @@ class Game
 
       if char == "T" && !args.state.entities.has_component?(id, :triggered)
         args.state.entities.add_component(id, :triggered, true)
-        screen_shake(2, 10)
-        pos_a.x = last_pos.x
-        pos_a.y = last_pos.y
+        damage_player(1)
       end
     end
 
+  end
+
+  def damage_player(amount)
+    player, _, pos, last_pos, health = args.state.entities.first_entity(:player, :position, :last_position, :health)
+    return unless player
+
+    health.amt -= amount
+    screen_shake(2, 10)
+    pos.x = last_pos.x
+    pos.y = last_pos.y
+
+    if health.amt <= 0
+      start_game
+    end
+  end
+
+  def render_health
+    id, health = args.state.entities.first_entity(:health)
+    return unless id
+
+    args.outputs[:world].labels << {
+      x: 10,
+      y: 710,
+      text: "Health: #{health.amt}",
+      size_enum: 2,
+      r: 255,
+      g: 0,
+      b: 0,
+      alignment_enum: 0,
+      vertical_alignment_enum: 2
+    }
   end
 
   def render_target 
