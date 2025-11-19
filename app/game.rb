@@ -96,9 +96,29 @@ class Game
         _, score = args.state.entities.first_entity(:score)
         score.amt += 1
         args.state.entities.destroy(id)
+      elsif char == ">"
+        next_level
+        return
       end
     end
 
+  end
+
+  def next_level
+    player_id, _, health, score, inventory = args.state.entities.first_entity(:player, :health, :score, :inventory)
+    
+    saved_health = health.amt
+    saved_score = score.amt
+    saved_inventory = inventory.dup
+
+    spawn_map(ROOMS.sample)
+
+    new_player_id, _, new_health, new_score, new_inventory = args.state.entities.first_entity(:player, :health, :score, :inventory)
+    
+    if new_player_id
+      new_health.amt = saved_health
+      new_score.amt = saved_score
+    end
   end
 
   def damage_player(amount)
@@ -251,6 +271,7 @@ class Game
   end
 
   def start_game 
+    args.state.entities = Drecs::World.new
     args.state.entities << { 
       timer: { time_remaining: 20 }
     }
@@ -291,6 +312,11 @@ class Game
   end
 
   def spawn_map(room)
+    to_delete = []
+    args.state.entities.query(:position) do |ids, _|
+      to_delete.concat(ids)
+    end
+    args.state.entities.destroy *to_delete
     room.each_with_index do |row, y|
       row.chars.each_with_index do |char, x|
         spawn_floor(x, y)

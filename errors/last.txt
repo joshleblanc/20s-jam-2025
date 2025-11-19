@@ -1,30 +1,19 @@
 * EXCEPTION:
-* ERROR:
-** method_missing: inventory
-** instance:       57
-** on class:       Integer
-** with modules:   [NumericDeprecated, ValueType, Comparable, Kernel]
-** with values:    57
-** given args:     [[]]
-** exception:      can't define singleton
-** backtrace:
-app/game.rb:65:in process_hit
-joshleblanc/drecs/drecs.rb:349:in each_entity
-joshleblanc/drecs/drecs.rb:347:in each_entity
-joshleblanc/drecs/drecs.rb:335:in query
-joshleblanc/drecs/drecs.rb:324:in query
-joshleblanc/drecs/drecs.rb:345:in each_entity
-app/game.rb:56:in process_hit
-app/game.rb:39:in tick
-app/main.rb:13:in tick
+* ERROR - :first method missing on ~NilClass~.
 
+#+begin_src ~NilClass#inspect~
+nil
+#+end_src ~NilClass#inspect~
+
+
+
+The method named
+  :first
+doesn't exist on [NilClass, NilClassFalseClass].
+
+(suggestions above)
 ** Backtrace:
-*** app/game.rb:65:in process_hit
-*** joshleblanc/drecs/drecs.rb:349:in each_entity
-*** joshleblanc/drecs/drecs.rb:347:in each_entity
-*** joshleblanc/drecs/drecs.rb:335:in query
-*** joshleblanc/drecs/drecs.rb:324:in query
-*** joshleblanc/drecs/drecs.rb:345:in each_entity
-*** app/game.rb:56:in process_hit
-*** app/game.rb:39:in tick
+*** app/game.rb:315:in spawn_map
+*** app/game.rb:279:in start_game
+*** app/game.rb:62:in tick
 *** app/main.rb:13:in tick
