@@ -1,6 +1,6 @@
 * EXCEPTION:
 * ERROR:
-** method_missing: health
+** method_missing: inventory
 ** instance:       57
 ** on class:       Integer
 ** with modules:   [NumericDeprecated, ValueType, Comparable, Kernel]
@@ -8,25 +8,23 @@
 ** given args:     [[]]
 ** exception:      can't define singleton
 ** backtrace:
-app/game.rb:71:in damage_player
-app/game.rb:61:in process_hit
+app/game.rb:65:in process_hit
 joshleblanc/drecs/drecs.rb:349:in each_entity
 joshleblanc/drecs/drecs.rb:347:in each_entity
 joshleblanc/drecs/drecs.rb:335:in query
 joshleblanc/drecs/drecs.rb:324:in query
 joshleblanc/drecs/drecs.rb:345:in each_entity
-app/game.rb:55:in process_hit
+app/game.rb:56:in process_hit
 app/game.rb:39:in tick
 app/main.rb:13:in tick
 
 ** Backtrace:
-*** app/game.rb:71:in damage_player
-*** app/game.rb:61:in process_hit
+*** app/game.rb:65:in process_hit
 *** joshleblanc/drecs/drecs.rb:349:in each_entity
 *** joshleblanc/drecs/drecs.rb:347:in each_entity
 *** joshleblanc/drecs/drecs.rb:335:in query
 *** joshleblanc/drecs/drecs.rb:324:in query
 *** joshleblanc/drecs/drecs.rb:345:in each_entity
-*** app/game.rb:55:in process_hit
+*** app/game.rb:56:in process_hit
 *** app/game.rb:39:in tick
 *** app/main.rb:13:in tick

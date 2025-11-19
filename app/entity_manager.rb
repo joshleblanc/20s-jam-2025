@@ -9,7 +9,7 @@ module EntityManager
   end
   
   def spawn_player(x, y)
-    spawn_entity(x, y, "@", :player, { player: true, last_position: { x: x, y: y }, health: { amt: 3 } })
+    spawn_entity(x, y, "@", :player, { player: true, last_position: { x: x, y: y }, health: { amt: 3 }, inventory: [] })
   end
 
   def spawn_wall(x, y)

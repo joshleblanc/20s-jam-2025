@@ -46,6 +46,7 @@ class Game
     process_screen_shake  
     render_target
     render_health
+    render_inventory
   end
 
   def process_hit
@@ -59,6 +60,10 @@ class Game
       if char == "T" && !args.state.entities.has_component?(id, :triggered)
         args.state.entities.add_component(id, :triggered, true)
         damage_player(1)
+      elsif char == "k"
+        _, inventory = args.state.entities.first_entity(:inventory)
+        args.state.entities.destroy(id)
+        inventory << :key
       end
     end
 
@@ -93,6 +98,25 @@ class Game
       alignment_enum: 0,
       vertical_alignment_enum: 2
     }
+  end
+
+  def render_inventory
+    player, inventory = args.state.entities.first_entity(:inventory)
+    return unless player
+
+    inventory.each_with_index do |item, i|
+      args.outputs[:world].labels << {
+        x: 10 + (i * 100),
+        y: 680,
+        text: item.to_s.capitalize,
+        size_enum: 2,
+        r: 255,
+        g: 255,
+        b: 255,
+        alignment_enum: 0,
+        vertical_alignment_enum: 2
+      }
+    end
   end
 
   def render_target 
