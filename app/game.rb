@@ -1,3 +1,17 @@
+##
+# T - Trap
+# k - Key
+# s - Slime
+# b - Bat
+# g - Goblin
+# p - Potion
+# S - Spike
+# > - Exit
+# t - Treasure
+# # - Wall
+# . - Floor
+# @ - Player
+
 ROOMS = [
   [
     "################",
@@ -41,7 +55,8 @@ class Game
       next if id == player
       next unless pos_b.x == pos_a.x && pos_b.y == pos_a.y
 
-      if char == "T" 
+      if char == "T" && !args.state.entities.has_component?(id, :triggered)
+        args.state.entities.add_component(id, :triggered, true)
         screen_shake(2, 10)
         pos_a.x = last_pos.x
         pos_a.y = last_pos.y
@@ -77,7 +92,8 @@ class Game
   end
 
   def render_static_map_stuff
-    args.state.entities.each_entity(:position, :char, :revealed) do |_, pos, char, revealed|
+    args.state.entities.each_entity(:position, :char, :revealed) do |id, pos, char, revealed|
+      next if char == "T" && !args.state.entities.has_component?(id, :triggered)
       args.outputs[:world].labels << {
         x: pos.x * ENTITY_W,
         y: pos.y * ENTITY_H,
