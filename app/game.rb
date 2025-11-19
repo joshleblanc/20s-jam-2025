@@ -75,6 +75,7 @@ class Game
     render_health
     render_inventory
     render_score
+    render_log
   end
 
   def process_hit
@@ -87,16 +88,20 @@ class Game
 
       if char == "T" && !args.state.entities.has_component?(id, :triggered)
         args.state.entities.add_component(id, :triggered, true)
+        log_message("Triggered a trap!")
         damage_player(1)
       elsif char == "k"
         _, inventory = args.state.entities.first_entity(:inventory)
         args.state.entities.destroy(id)
         inventory << :key
+        log_message("Picked up a key.")
       elsif char == "t"
         _, score = args.state.entities.first_entity(:score)
         score.amt += 1
         args.state.entities.destroy(id)
+        log_message("Found treasure!")
       elsif char == ">"
+        log_message("Found the exit!")
         next_level
         return
       end
@@ -112,6 +117,7 @@ class Game
     saved_inventory = inventory.dup
 
     spawn_map(ROOMS.sample)
+    log_message("Entered a new room.")
 
     new_player_id, _, new_health, new_score, new_inventory = args.state.entities.first_entity(:player, :health, :score, :inventory)
     
@@ -126,6 +132,7 @@ class Game
     return unless player
 
     health.amt -= amount
+    log_message("Took #{amount} damage!")
     screen_shake(2, 10)
     pos.x = last_pos.x
     pos.y = last_pos.y
@@ -188,6 +195,31 @@ class Game
         vertical_alignment_enum: 2
       }
     end
+  end
+
+  def render_log
+    _, log = args.state.entities.first_entity(:log)
+    return unless log
+
+    x = 300.from_right 
+    y = 200
+
+    # Show last 20 messages, reversed so newest is at top (below header)
+    log.messages.last(20).reverse.each_with_index do |msg, i|
+      args.outputs[:world].labels << {
+        x: x,
+        y: y - 25 - (i * 25),
+        text: msg,
+        size_enum: 0,
+        r: 0, g: 0, b: 0,
+        alignment_enum: 0
+      }
+    end
+  end
+
+  def log_message(text)
+    _, log = args.state.entities.first_entity(:log)
+    log.messages << text
   end
 
   def render_target 
@@ -275,6 +307,9 @@ class Game
     args.state.entities << { 
       timer: { time_remaining: 20 }
     }
+    args.state.entities << {
+      log: { messages: ["Welcome to the dungeon!"] }
+    }
 
     spawn_map(ROOMS.sample)
   end
@@ -297,6 +332,13 @@ class Game
       args.state.entities << {
         position_changed: true
       }
+      
+      dir_text = if x_change > 0 then "right"
+                 elsif x_change < 0 then "left"
+                 elsif y_change > 0 then "up"
+                 elsif y_change < 0 then "down"
+                 end
+      log_message("Moved #{dir_text}") if dir_text
     elsif x_change == 0 && y_change == 0 && pos_changed
       args.state.entities.destroy(pos_changed.first)
     end
