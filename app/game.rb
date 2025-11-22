@@ -105,8 +105,7 @@ class Game
       elsif enemy_type?(type)
         health = args.state.entities.get_component(id, :health)
         next unless health
-        damage_player(1)
-        if damage_enemy(id, health)
+        if !damage_player(1) && damage_enemy(id, health)
           ids_to_destroy << id
         end
       elsif char == "k"
@@ -159,12 +158,16 @@ class Game
     pos.y = last_pos.y
 
     if health.amt <= 0
-      start_game
+      log_message("You died!")
+      spawn_map(ROOMS.sample)
+      true
     end
+
+    false
   end
 
   def render_health
-    id, health = args.state.entities.first_entity(:health)
+    id, _, health = args.state.entities.first_entity(:player, :health)
     return unless id
 
     args.outputs[:world].labels << {
