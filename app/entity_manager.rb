@@ -7,7 +7,7 @@ module EntityManager
       **extra
     }
   end
-  
+
   def spawn_player(x, y)
     spawn_entity(x, y, "@", :player, { player: true, last_position: { x: x, y: y }, health: { amt: 3 }, score: { amt: 0 }, inventory: [] })
   end
@@ -41,15 +41,15 @@ module EntityManager
   end
 
   def spawn_slime(x, y)
-    spawn_entity(x, y, "s", :slime, { slime: true })
+    spawn_entity(x, y, "s", :slime, { slime: true, health: { amt: 1 } })
   end
 
   def spawn_goblin(x, y)
-    spawn_entity(x, y, "g", :goblin, { goblin: true })
+    spawn_entity(x, y, "g", :goblin, { goblin: true, health: { amt: 1 } })
   end
 
   def spawn_bat(x,y)
-    spawn_entity(x, y, "b", :bat, { bat:true })
+    spawn_entity(x, y, "b", :bat, { bat:true, health: { amt: 1 } })
   end
 
   def spawn_exit(x, y)

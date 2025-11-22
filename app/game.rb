@@ -50,9 +50,18 @@ ROOMS = [
   ]
 ]
 
-class Game 
+class Game
   ENTITY_W = 32
   ENTITY_H = 64
+  ENEMY_MOVE_INTERVAL = {
+    bat: 1,      # moves every player step
+    goblin: 2,   # every other player step
+    slime: 4     # very slow
+  }.freeze
+  BAT_DELTAS = [[1, 1], [1, -1], [-1, 1], [-1, -1]].freeze
+  GOBLIN_DELTAS = [[1, 0], [-1, 0], [0, 1], [0, -1]].freeze
+  SLIME_DELTAS = (GOBLIN_DELTAS + BAT_DELTAS).freeze
+
   include EntityManager
   include Effects
 
@@ -63,6 +72,7 @@ class Game
     process_timer
 
     handle_input
+    process_enemy_ai
     process_hit
     reveal_tiles
     render_static_map_stuff
@@ -70,7 +80,7 @@ class Game
 
     handle_state_change
 
-    process_screen_shake  
+    process_screen_shake
     render_target
     render_health
     render_inventory
@@ -82,7 +92,9 @@ class Game
     player, _, pos_a, last_pos = args.state.entities.first_entity(:player, :position, :last_position)
     return unless player
 
-    args.state.entities.each_entity(:position, :char) do |id, pos_b, char|
+    ids_to_destroy = []
+
+    args.state.entities.each_entity(:position, :char, :type) do |id, pos_b, char, type|
       next if id == player
       next unless pos_b.x == pos_a.x && pos_b.y == pos_a.y
 
@@ -90,6 +102,13 @@ class Game
         args.state.entities.add_component(id, :triggered, true)
         log_message("Triggered a trap!")
         damage_player(1)
+      elsif enemy_type?(type)
+        health = args.state.entities.get_component(id, :health)
+        next unless health
+        damage_player(1)
+        if damage_enemy(id, health)
+          ids_to_destroy << id
+        end
       elsif char == "k"
         _, inventory = args.state.entities.first_entity(:inventory)
         args.state.entities.destroy(id)
@@ -107,11 +126,13 @@ class Game
       end
     end
 
+    args.state.entities.destroy(*ids_to_destroy) unless ids_to_destroy.empty?
+
   end
 
   def next_level
     player_id, _, health, score, inventory = args.state.entities.first_entity(:player, :health, :score, :inventory)
-    
+
     saved_health = health.amt
     saved_score = score.amt
     saved_inventory = inventory.dup
@@ -120,7 +141,7 @@ class Game
     log_message("Entered a new room.")
 
     new_player_id, _, new_health, new_score, new_inventory = args.state.entities.first_entity(:player, :health, :score, :inventory)
-    
+
     if new_player_id
       new_health.amt = saved_health
       new_score.amt = saved_score
@@ -201,7 +222,7 @@ class Game
     _, log = args.state.entities.first_entity(:log)
     return unless log
 
-    x = 300.from_right 
+    x = 300.from_right
     y = 200
 
     # Show last 20 messages, reversed so newest is at top (below header)
@@ -222,11 +243,11 @@ class Game
     log.messages << text
   end
 
-  def render_target 
+  def render_target
     _, shake = args.state.entities.first_entity(:screen_shake)
-    x = 0 
-    y = 0 
-    if shake 
+    x = 0
+    y = 0
+    if shake
      x = shake.offset_x
      y = shake.offset_y
     end
@@ -236,7 +257,7 @@ class Game
     }
   end
 
-  def reveal_tiles 
+  def reveal_tiles
     _, _, pos_a = args.state.entities.first_entity(:player, :position)
 
     args.state.entities.each_entity(:position) do |id, pos_b|
@@ -265,12 +286,12 @@ class Game
   end
 
 
-  def render_timer 
+  def render_timer
     args.state.entities.each_entity(:timer) do |_, timer|
       args.outputs.debug << timer.time_remaining.to_s
       tw,th = args.gtk.calcstringbox(timer.time_remaining.to_s, 4)
 
-      args.outputs[:world].labels << { 
+      args.outputs[:world].labels << {
         x: (1280 / 2) + (tw / 2),
         y: th.from_top,
         alignment_enum: 0,
@@ -281,11 +302,11 @@ class Game
   end
 
 
-  def process_timer 
+  def process_timer
     return unless args.state.tick_count % 60 == 0
     args.state.entities.each_entity(:timer) do |id, timer|
       timer.time_remaining -= 1
-      if timer.time_remaining == 0 
+      if timer.time_remaining == 0
         args.state.entities << {
           state_change: { to: :end_game }
         }
@@ -302,23 +323,25 @@ class Game
     args.state.entities.destroy *ids_to_remove
   end
 
-  def start_game 
+  def start_game
     args.state.entities = Drecs::World.new
-    args.state.entities << { 
+    args.state.entities << {
       timer: { time_remaining: 20 }
     }
     args.state.entities << {
       log: { messages: ["Welcome to the dungeon!"] }
     }
+    args.state.player_step_count = 0
+    args.state.last_enemy_step_processed = 0
 
     spawn_map(ROOMS.sample)
   end
 
-  def handle_input 
+  def handle_input
     pos_changed = args.state.entities.first_entity(:position_changed)
 
     args.outputs.debug << pos_changed.to_s
-    player, _, pos, last_pos = args.state.entities.first_entity(:player, :position, :last_position) 
+    player, _, pos, last_pos = args.state.entities.first_entity(:player, :position, :last_position)
 
     x_change = args.inputs.left_right
     y_change = args.inputs.up_down
@@ -329,10 +352,12 @@ class Game
       last_pos.y = pos.y
       pos.x += x_change
       pos.y += y_change
+      args.state.player_step_count ||= 0
+      args.state.player_step_count += 1
       args.state.entities << {
         position_changed: true
       }
-      
+
       dir_text = if x_change > 0 then "right"
                  elsif x_change < 0 then "left"
                  elsif y_change > 0 then "up"
@@ -348,9 +373,62 @@ class Game
     args.state.entities.each_entity(:position, :char) do |_, pos, char|
       if char == "#" && pos.x == x && pos.y == y
         return false
-      end 
+      end
     end
     true
+  end
+
+  def process_enemy_ai
+    current_step = args.state.player_step_count || 0
+    last_processed = args.state.last_enemy_step_processed || 0
+    return if current_step == last_processed
+
+    args.state.entities.each_entity(:position, :type, :health) do |id, pos, type, health|
+      next if health.amt <= 0
+      case type
+      when :bat
+        attempt_enemy_move(:bat, pos, BAT_DELTAS, current_step)
+      when :goblin
+        attempt_enemy_move(:goblin, pos, GOBLIN_DELTAS, current_step)
+      when :slime
+        attempt_enemy_move(:slime, pos, SLIME_DELTAS, current_step)
+      end
+    end
+
+    args.state.last_enemy_step_processed = current_step
+  end
+
+  def attempt_enemy_move(type, pos, deltas, current_step)
+    return unless enemy_ready_to_move?(type, current_step)
+    deltas.shuffle.each do |dx, dy|
+      new_x = pos.x + dx
+      new_y = pos.y + dy
+      next unless can_move?(new_x, new_y)
+
+      pos.x = new_x
+      pos.y = new_y
+      break
+    end
+  end
+
+  def enemy_ready_to_move?(type, current_step)
+    interval = ENEMY_MOVE_INTERVAL[type] || 15
+    interval > 0 && current_step % interval == 0
+  end
+
+  def enemy_type?(type)
+    type == :bat || type == :goblin || type == :slime
+  end
+
+  def damage_enemy(enemy_id, health)
+    health.amt -= 1
+    if health.amt <= 0
+      _, score = args.state.entities.first_entity(:score)
+      score.amt += 1 if score
+      log_message("Defeated an enemy!")
+      return true
+    end
+    false
   end
 
   def spawn_map(room)
