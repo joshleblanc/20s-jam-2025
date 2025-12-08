@@ -68,7 +68,97 @@ class Game
   attr_gtk
 
   def tick
-    start_game if args.state.tick_count == 0
+    init_menu if args.state.tick_count == 0
+
+    case args.state.game_state
+    when :menu
+      tick_menu
+    when :game_over
+      tick_game_over
+    else
+      tick_game
+    end
+  end
+
+  def init_menu
+    args.state.game_state = :menu
+    args.state.highscores ||= []
+    args.state.last_score = nil
+  end
+
+  def tick_menu
+    render_menu
+    handle_menu_input
+  end
+
+  def render_menu
+    args.outputs.labels << {
+      x: 640, y: 500,
+      text: "DUNGEON CRAWLER",
+      size_enum: 10,
+      alignment_enum: 1,
+      r: 255, g: 255, b: 255
+    }
+
+    # Start button
+    start_btn = { x: 540, y: 350, w: 200, h: 50 }
+    args.outputs.solids << start_btn.merge(r: 100, g: 100, b: 100)
+    args.outputs.labels << {
+      x: 640, y: 385,
+      text: "START",
+      size_enum: 4,
+      alignment_enum: 1,
+      r: 255, g: 255, b: 255
+    }
+
+    # Highscores
+    args.outputs.labels << {
+      x: 640, y: 280,
+      text: "HIGH SCORES",
+      size_enum: 4,
+      alignment_enum: 1,
+      r: 255, g: 200, b: 0
+    }
+
+    top_scores = args.state.highscores.sort.reverse.take(5)
+    top_scores.each_with_index do |score, i|
+      args.outputs.labels << {
+        x: 640, y: 240 - (i * 30),
+        text: "#{i + 1}. #{score}",
+        size_enum: 2,
+        alignment_enum: 1,
+        r: 255, g: 255, b: 255
+      }
+    end
+
+    if top_scores.empty?
+      args.outputs.labels << {
+        x: 640, y: 240,
+        text: "No scores yet",
+        size_enum: 2,
+        alignment_enum: 1,
+        r: 150, g: 150, b: 150
+      }
+    end
+  end
+
+  def handle_menu_input
+    if args.inputs.keyboard.key_down.enter || args.inputs.keyboard.key_down.space
+      start_game
+      return
+    end
+
+    if args.inputs.mouse.click
+      mouse = args.inputs.mouse
+      start_btn = { x: 540, y: 350, w: 200, h: 50 }
+      if mouse.x >= start_btn[:x] && mouse.x <= start_btn[:x] + start_btn[:w] &&
+         mouse.y >= start_btn[:y] && mouse.y <= start_btn[:y] + start_btn[:h]
+        start_game
+      end
+    end
+  end
+
+  def tick_game
     process_timer
 
     handle_input
@@ -321,12 +411,17 @@ class Game
     ids_to_remove = []
     args.state.entities.each_entity(:state_change) do |id, state_change|
       ids_to_remove << id
-      # delete everything
+      if state_change.to == :end_game
+        _, score = args.state.entities.first_entity(:score)
+        final_score = score ? score.amt : 0
+        end_game(final_score)
+      end
     end
     args.state.entities.destroy *ids_to_remove
   end
 
   def start_game
+    args.state.game_state = :playing
     args.state.entities = Drecs::World.new
     args.state.entities << {
       timer: { time_remaining: 20 }
@@ -338,6 +433,98 @@ class Game
     args.state.last_enemy_step_processed = 0
 
     spawn_map(ROOMS.sample)
+  end
+
+  def end_game(final_score)
+    args.state.highscores ||= []
+    args.state.highscores << final_score
+    args.state.last_score = final_score
+    args.state.game_state = :game_over
+  end
+
+  def tick_game_over
+    render_game_over
+    handle_game_over_input
+  end
+
+  def render_game_over
+    args.outputs.labels << {
+      x: 640, y: 500,
+      text: "GAME OVER",
+      size_enum: 10,
+      alignment_enum: 1,
+      r: 255, g: 50, b: 50
+    }
+
+    args.outputs.labels << {
+      x: 640, y: 420,
+      text: "Score: #{args.state.last_score}",
+      size_enum: 6,
+      alignment_enum: 1,
+      r: 255, g: 255, b: 255
+    }
+
+    # Check if high score
+    if args.state.highscores.sort.reverse.first == args.state.last_score
+      args.outputs.labels << {
+        x: 640, y: 370,
+        text: "NEW HIGH SCORE!",
+        size_enum: 4,
+        alignment_enum: 1,
+        r: 255, g: 200, b: 0
+      }
+    end
+
+    # Play Again button
+    play_btn = { x: 440, y: 250, w: 180, h: 50 }
+    args.outputs.solids << play_btn.merge(r: 100, g: 100, b: 100)
+    args.outputs.labels << {
+      x: 530, y: 285,
+      text: "PLAY AGAIN",
+      size_enum: 3,
+      alignment_enum: 1,
+      r: 255, g: 255, b: 255
+    }
+
+    # Menu button
+    menu_btn = { x: 660, y: 250, w: 180, h: 50 }
+    args.outputs.solids << menu_btn.merge(r: 100, g: 100, b: 100)
+    args.outputs.labels << {
+      x: 750, y: 285,
+      text: "MENU",
+      size_enum: 3,
+      alignment_enum: 1,
+      r: 255, g: 255, b: 255
+    }
+  end
+
+  def handle_game_over_input
+    if args.inputs.keyboard.key_down.enter || args.inputs.keyboard.key_down.space
+      start_game
+      return
+    end
+
+    if args.inputs.keyboard.key_down.escape
+      args.state.game_state = :menu
+      return
+    end
+
+    if args.inputs.mouse.click
+      mouse = args.inputs.mouse
+
+      play_btn = { x: 440, y: 250, w: 180, h: 50 }
+      if mouse.x >= play_btn[:x] && mouse.x <= play_btn[:x] + play_btn[:w] &&
+         mouse.y >= play_btn[:y] && mouse.y <= play_btn[:y] + play_btn[:h]
+        start_game
+        return
+      end
+
+      menu_btn = { x: 660, y: 250, w: 180, h: 50 }
+      if mouse.x >= menu_btn[:x] && mouse.x <= menu_btn[:x] + menu_btn[:w] &&
+         mouse.y >= menu_btn[:y] && mouse.y <= menu_btn[:y] + menu_btn[:h]
+        args.state.game_state = :menu
+      end
+    end
   end
 
   def handle_input
