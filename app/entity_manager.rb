@@ -40,6 +40,10 @@ module EntityManager
     spawn_entity(x, y, "P", :potion)
   end
 
+  def spawn_door(x, y)
+    spawn_entity(x, y, "D", :door)
+  end
+
   def spawn_slime(x, y)
     spawn_entity(x, y, "s", :slime, { slime: true, health: { amt: 1 } })
   end

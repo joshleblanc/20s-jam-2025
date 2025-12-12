@@ -26,7 +26,7 @@ ROOMS = [
     "#@.....p.......#",
     "#######.########",
     "#t...s...s...k.#",
-    "#######.########",
+    "#######D########",
     "#.............>#",
     "################",
   ],
@@ -45,7 +45,7 @@ ROOMS = [
     "#.s..k.#.#####.#",
     "#..#.........#.#",
     "####.#######.#.#",
-    "#>...........#.#",
+    "#>.D.........#.#",
     "################",
   ]
 ]
@@ -71,6 +71,7 @@ class Game
   ENTITY_DRAW_PRIORITY = {
     floor: 0,
     wall: 1,
+    door: 2,
     trap: 2,
     spike: 2,
     key: 3,
@@ -287,7 +288,7 @@ class Game
 
         if revealed[[gx, gy]]
           base = PALETTE[:floor]
-          if (cells[[gx, gy]] && cells[[gx, gy]][:type] == :wall)
+          if (cells[[gx, gy]] && (cells[[gx, gy]][:type] == :wall || cells[[gx, gy]][:type] == :door))
             base = PALETTE[:wall]
           end
           args.outputs[:world].solids << { x: x, y: y, w: ENTITY_W, h: ENTITY_H, **base }
@@ -340,6 +341,8 @@ class Game
         r, g, b = 255, 170, 120
       when :spike
         r, g, b = 210, 220, 235
+      when :door
+        r, g, b = 210, 170, 95
       when :potion
         r, g, b = 255, 140, 180
       when :trap
@@ -769,7 +772,29 @@ class Game
     y_change = -args.inputs.up_down
 
 
-    if (x_change != 0 || y_change != 0) && !pos_changed && can_move?(pos.x + x_change, pos.y + y_change)
+    if (x_change != 0 || y_change != 0) && !pos_changed
+      target_x = pos.x + x_change
+      target_y = pos.y + y_change
+
+      door_id = nil
+      args.state.entities.each_entity(:position, :char) do |id, dpos, char|
+        if char == "D" && dpos.x == target_x && dpos.y == target_y
+          door_id = id
+          break
+        end
+      end
+
+      if door_id
+        inventory = args.state.entities.get_component(player, :inventory)
+        if inventory && inventory.include?(:key)
+          inventory.delete_at(inventory.index(:key))
+          args.state.entities.destroy(door_id)
+          log_message("Unlocked a door.")
+        end
+      end
+
+      return unless can_move?(target_x, target_y)
+
       last_pos.x = pos.x
       last_pos.y = pos.y
       pos.x += x_change
@@ -794,7 +819,7 @@ class Game
 
   def can_move?(x, y)
     args.state.entities.each_entity(:position, :char) do |_, pos, char|
-      if char == "#" && pos.x == x && pos.y == y
+      if (char == "#" || char == "D") && pos.x == x && pos.y == y
         return false
       end
     end
@@ -869,6 +894,7 @@ class Game
         case char
         when "#" then spawn_wall(x, y)
         when "@" then spawn_player(x, y)
+        when "D" then spawn_door(x, y)
         when "k" then spawn_key(x, y)
         when "T" then spawn_trap(x, y)
         when "t" then spawn_treasure(x, y)
