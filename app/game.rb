@@ -51,8 +51,36 @@ ROOMS = [
 ]
 
 class Game
-  ENTITY_W = 32
-  ENTITY_H = 64
+  ENTITY_W = 40
+  ENTITY_H = 40
+
+  PALETTE = {
+    bg: { r: 10, g: 12, b: 18 }.freeze,
+    panel: { r: 18, g: 22, b: 34 }.freeze,
+    panel_edge: { r: 40, g: 52, b: 90 }.freeze,
+    text: { r: 236, g: 240, b: 255 }.freeze,
+    muted: { r: 150, g: 160, b: 190 }.freeze,
+    danger: { r: 255, g: 80, b: 92 }.freeze,
+    gold: { r: 255, g: 200, b: 70 }.freeze,
+    fog: { r: 6, g: 8, b: 12 }.freeze,
+    floor: { r: 24, g: 28, b: 40 }.freeze,
+    wall: { r: 70, g: 78, b: 100 }.freeze,
+    accent: { r: 120, g: 160, b: 255 }.freeze
+  }.freeze
+
+  ENTITY_DRAW_PRIORITY = {
+    floor: 0,
+    wall: 1,
+    trap: 2,
+    spike: 2,
+    key: 3,
+    treasure: 3,
+    exit: 3,
+    slime: 4,
+    bat: 4,
+    goblin: 4,
+    player: 10
+  }.freeze
   ENEMY_MOVE_INTERVAL = {
     bat: 1,      # moves every player step
     goblin: 2,   # every other player step
@@ -92,32 +120,40 @@ class Game
   end
 
   def render_menu
+    args.outputs.solids << {
+      x: 0, y: 0, w: 1280, h: 720,
+      **PALETTE[:bg]
+    }
+
+    render_panel(220, 140, 840, 440, target: :screen)
+
     args.outputs.labels << {
-      x: 640, y: 500,
+      x: 640, y: 520,
       text: "DUNGEON CRAWLER",
       size_enum: 10,
       alignment_enum: 1,
-      r: 255, g: 255, b: 255
+      **PALETTE[:text]
     }
 
     # Start button
     start_btn = { x: 540, y: 350, w: 200, h: 50 }
-    args.outputs.solids << start_btn.merge(r: 100, g: 100, b: 100)
+    args.outputs.solids << start_btn.merge(**PALETTE[:panel_edge], a: 180)
+    args.outputs.borders << start_btn.merge(**PALETTE[:accent], a: 220)
     args.outputs.labels << {
       x: 640, y: 385,
       text: "START",
       size_enum: 4,
       alignment_enum: 1,
-      r: 255, g: 255, b: 255
+      **PALETTE[:text]
     }
 
     # Highscores
     args.outputs.labels << {
-      x: 640, y: 280,
+      x: 640, y: 292,
       text: "HIGH SCORES",
       size_enum: 4,
       alignment_enum: 1,
-      r: 255, g: 200, b: 0
+      **PALETTE[:gold]
     }
 
     top_scores = args.state.highscores.sort.reverse.take(5)
@@ -127,7 +163,7 @@ class Game
         text: "#{i + 1}. #{score}",
         size_enum: 2,
         alignment_enum: 1,
-        r: 255, g: 255, b: 255
+        **PALETTE[:text]
       }
     end
 
@@ -137,7 +173,7 @@ class Game
         text: "No scores yet",
         size_enum: 2,
         alignment_enum: 1,
-        r: 150, g: 150, b: 150
+        **PALETTE[:muted]
       }
     end
   end
@@ -165,7 +201,9 @@ class Game
     process_enemy_ai
     process_hit
     reveal_tiles
-    render_static_map_stuff
+    process_visual_fx
+    render_game_background
+    render_map
     render_timer
 
     handle_state_change
@@ -176,6 +214,160 @@ class Game
     render_inventory
     render_score
     render_log
+  end
+
+  def process_visual_fx
+    if args.state.damage_flash_frames
+      args.state.damage_flash_frames -= 1
+      args.state.damage_flash_frames = nil if args.state.damage_flash_frames <= 0
+    end
+  end
+
+  def render_game_background
+    args.outputs[:world].solids << {
+      x: 0, y: 0, w: 1280, h: 720,
+      **PALETTE[:bg]
+    }
+  end
+
+  def map_origin
+    map_w = args.state.map_w || 16
+    map_h = args.state.map_h || 8
+
+    pad = 28
+    map_px_w = map_w * ENTITY_W
+    map_px_h = map_h * ENTITY_H
+
+    x = pad
+    y = (720 - map_px_h) / 2
+
+    { x: x, y: y, w: map_px_w, h: map_px_h, map_w: map_w, map_h: map_h }
+  end
+
+  def grid_to_px_x(grid_x)
+    map_origin[:x] + (grid_x * ENTITY_W)
+  end
+
+  def grid_to_px_y(grid_y)
+    o = map_origin
+    o[:y] + ((o[:map_h] - 1 - grid_y) * ENTITY_H)
+  end
+
+  def render_panel(x, y, w, h, target: :world)
+    outputs = target == :screen ? args.outputs : args.outputs[target]
+    outputs.solids << { x: x, y: y, w: w, h: h, **PALETTE[:panel] }
+    outputs.borders << { x: x, y: y, w: w, h: h, **PALETTE[:panel_edge], a: 200 }
+  end
+
+  def render_map
+    o = map_origin
+    render_panel(o[:x] - 12, o[:y] - 12, o[:w] + 24, o[:h] + 24)
+
+    revealed = {}
+    args.state.entities.each_entity(:position, :revealed) do |_, pos, _|
+      revealed[[pos.x, pos.y]] = true
+    end
+
+    cells = {}
+    args.state.entities.each_entity(:position, :char, :type) do |id, pos, char, type|
+      next if char == "T" && !args.state.entities.has_component?(id, :triggered)
+      key = [pos.x, pos.y]
+
+      prio = ENTITY_DRAW_PRIORITY[type] || 0
+      existing = cells[key]
+      if existing.nil? || prio >= existing[:prio]
+        cells[key] = { id: id, char: char, type: type, prio: prio }
+      end
+    end
+
+    (0...o[:map_w]).each do |gx|
+      (0...o[:map_h]).each do |gy|
+        x = grid_to_px_x(gx)
+        y = grid_to_px_y(gy)
+
+        if revealed[[gx, gy]]
+          base = PALETTE[:floor]
+          if (cells[[gx, gy]] && cells[[gx, gy]][:type] == :wall)
+            base = PALETTE[:wall]
+          end
+          args.outputs[:world].solids << { x: x, y: y, w: ENTITY_W, h: ENTITY_H, **base }
+          args.outputs[:world].solids << { x: x, y: y, w: ENTITY_W, h: ENTITY_H, r: 0, g: 0, b: 0, a: 25 }
+        else
+          args.outputs[:world].solids << { x: x, y: y, w: ENTITY_W, h: ENTITY_H, **PALETTE[:fog] }
+          args.outputs[:world].solids << { x: x, y: y, w: ENTITY_W, h: ENTITY_H, r: 0, g: 0, b: 0, a: 90 }
+        end
+      end
+    end
+
+    player_id, _, player_pos = args.state.entities.first_entity(:player, :position)
+    player_bob_y = 0
+    if player_id
+      dt = args.state.last_player_move_tick ? (args.state.tick_count - args.state.last_player_move_tick) : 999
+      if dt < 8
+        player_bob_y = Math.sin(dt.fdiv(8) * Math::PI) * 8
+        args.outputs[:world].solids << {
+          x: grid_to_px_x(player_pos.x),
+          y: grid_to_px_y(player_pos.y),
+          w: ENTITY_W,
+          h: ENTITY_H,
+          **PALETTE[:accent],
+          a: 30
+        }
+      end
+    end
+
+    cells.each do |(gx, gy), cell|
+      next unless revealed[[gx, gy]]
+      next if cell[:type] == :floor || cell[:type] == :wall
+      x = grid_to_px_x(gx)
+      y = grid_to_px_y(gy)
+
+      r, g, b = PALETTE[:text].values_at(:r, :g, :b)
+      case cell[:type]
+      when :player
+        r, g, b = PALETTE[:accent].values_at(:r, :g, :b)
+      when :treasure
+        r, g, b = PALETTE[:gold].values_at(:r, :g, :b)
+      when :key
+        r, g, b = 200, 220, 255
+      when :exit
+        r, g, b = 140, 255, 170
+      when :slime
+        r, g, b = 120, 255, 150
+      when :bat
+        r, g, b = 220, 180, 255
+      when :goblin
+        r, g, b = 255, 170, 120
+      when :spike
+        r, g, b = 210, 220, 235
+      when :potion
+        r, g, b = 255, 140, 180
+      when :trap
+        r, g, b = PALETTE[:danger].values_at(:r, :g, :b)
+      end
+
+      if args.state.damage_flash_frames && cell[:type] == :player
+        r, g, b = PALETTE[:danger].values_at(:r, :g, :b)
+      end
+
+      wobble = Math.sin((args.state.tick_count + (cell[:id] * 7)).fdiv(12)) * 2
+      extra_y = 0
+      if cell[:type] == :player
+        extra_y = player_bob_y
+      elsif enemy_type?(cell[:type])
+        extra_y = wobble
+      end
+
+      args.outputs[:world].labels << {
+        x: x + (ENTITY_W / 2),
+        y: y + (ENTITY_H / 2) + 2 + extra_y,
+        text: cell[:char],
+        alignment_enum: 1,
+        vertical_alignment_enum: 1,
+        size_enum: 3,
+        r: r, g: g, b: b
+      }
+    end
   end
 
   def process_hit
@@ -244,6 +436,7 @@ class Game
     health.amt -= amount
     log_message("Took #{amount} damage!")
     screen_shake(2, 10)
+    args.state.damage_flash_frames = 10
     pos.x = last_pos.x
     pos.y = last_pos.y
 
@@ -260,14 +453,15 @@ class Game
     id, _, health = args.state.entities.first_entity(:player, :health)
     return unless id
 
+    x = 24
+    y = 720 - 24
+    render_panel(x - 12, y - 46, 260, 44)
     args.outputs[:world].labels << {
-      x: 10,
-      y: 710,
-      text: "Health: #{health.amt}",
-      size_enum: 2,
-      r: 255,
-      g: 0,
-      b: 0,
+      x: x,
+      y: y - 18,
+      text: "HP  #{health.amt}",
+      size_enum: 3,
+      **PALETTE[:danger],
       alignment_enum: 0,
       vertical_alignment_enum: 2
     }
@@ -277,16 +471,17 @@ class Game
     id, score = args.state.entities.first_entity(:score)
     return unless id
 
-    text = "Score: #{score.amt}"
-    tw, th = args.gtk.calcstringbox(text, 2)
+    text = "SCORE  #{score.amt}"
+    tw, _th = args.gtk.calcstringbox(text, 3)
+    x = 1280 - 24 - tw - 24
+    y = 720 - 24
+    render_panel(x - 12, y - 46, tw + 48, 44)
     args.outputs[:world].labels << {
-      x: 640,
-      y: 0.from_top - (th * 2),
+      x: x,
+      y: y - 18,
       text: text,
-      size_enum: 2,
-      r: 0,
-      g: 0,
-      b: 0,
+      size_enum: 3,
+      **PALETTE[:gold],
       alignment_enum: 0,
       vertical_alignment_enum: 2
     }
@@ -296,37 +491,55 @@ class Game
     player, inventory = args.state.entities.first_entity(:inventory)
     return unless player
 
-    inventory.each_with_index do |item, i|
-      args.outputs[:world].labels << {
-        x: 10 + (i * 100),
-        y: 680,
-        text: item.to_s.capitalize,
-        size_enum: 2,
-        r: 255,
-        g: 255,
-        b: 255,
-        alignment_enum: 0,
-        vertical_alignment_enum: 2
-      }
-    end
+    x = 24
+    y = 720 - 80
+    render_panel(x - 12, y - 46, 360, 44)
+    text = if inventory.empty?
+             "INV  (empty)"
+           else
+             "INV  " + inventory.map { |i| i.to_s.capitalize }.join("  ")
+           end
+    args.outputs[:world].labels << {
+      x: x,
+      y: y - 18,
+      text: text,
+      size_enum: 2,
+      **PALETTE[:text],
+      alignment_enum: 0,
+      vertical_alignment_enum: 2
+    }
   end
 
   def render_log
     _, log = args.state.entities.first_entity(:log)
     return unless log
 
-    x = 300.from_right
-    y = 200
+    x = 1280 - 24 - 360
+    y = 24
+    w = 360
+    h = 720 - 24 - 24
 
-    # Show last 20 messages, reversed so newest is at top (below header)
-    log.messages.last(20).reverse.each_with_index do |msg, i|
+    render_panel(x, y, w, h)
+    args.outputs[:world].labels << {
+      x: x + 16,
+      y: y + h - 18,
+      text: "LOG",
+      size_enum: 2,
+      **PALETTE[:muted],
+      alignment_enum: 0,
+      vertical_alignment_enum: 2
+    }
+
+    max = 22
+    log.messages.last(max).reverse.each_with_index do |msg, i|
       args.outputs[:world].labels << {
-        x: x,
-        y: y - 25 - (i * 25),
+        x: x + 16,
+        y: y + h - 52 - (i * 24),
         text: msg,
-        size_enum: 0,
-        r: 0, g: 0, b: 0,
-        alignment_enum: 0
+        size_enum: 1,
+        **PALETTE[:text],
+        alignment_enum: 0,
+        vertical_alignment_enum: 2
       }
     end
   end
@@ -341,8 +554,8 @@ class Game
     x = 0
     y = 0
     if shake
-     x = shake.offset_x
-     y = shake.offset_y
+     x = shake.offset_x.to_i
+     y = shake.offset_y.to_i
     end
     args.outputs.sprites << {
       x: x, y: y, w: 1280, h: 720,
@@ -381,15 +594,21 @@ class Game
 
   def render_timer
     args.state.entities.each_entity(:timer) do |_, timer|
-      args.outputs.debug << timer.time_remaining.to_s
-      tw,th = args.gtk.calcstringbox(timer.time_remaining.to_s, 4)
+      time_text = timer.time_remaining.to_s
+      tw, _th = args.gtk.calcstringbox(time_text, 6)
+      x = (1280 / 2) - (tw / 2)
+      y = 720 - 24
 
+      render_panel(x - 18, y - 62, tw + 36, 56)
+      color = timer.time_remaining <= 5 ? PALETTE[:danger] : PALETTE[:text]
       args.outputs[:world].labels << {
-        x: (1280 / 2) + (tw / 2),
-        y: th.from_top,
-        alignment_enum: 0,
-        size_enum: 4,
-        text: timer.time_remaining.to_s
+        x: 1280 / 2,
+        y: y - 26,
+        alignment_enum: 1,
+        vertical_alignment_enum: 2,
+        size_enum: 6,
+        text: time_text,
+        **color
       }
     end
   end
@@ -448,20 +667,27 @@ class Game
   end
 
   def render_game_over
+    args.outputs.solids << {
+      x: 0, y: 0, w: 1280, h: 720,
+      **PALETTE[:bg]
+    }
+
+    render_panel(220, 150, 840, 420, target: :screen)
+
     args.outputs.labels << {
-      x: 640, y: 500,
+      x: 640, y: 520,
       text: "GAME OVER",
       size_enum: 10,
       alignment_enum: 1,
-      r: 255, g: 50, b: 50
+      **PALETTE[:danger]
     }
 
     args.outputs.labels << {
-      x: 640, y: 420,
+      x: 640, y: 440,
       text: "Score: #{args.state.last_score}",
       size_enum: 6,
       alignment_enum: 1,
-      r: 255, g: 255, b: 255
+      **PALETTE[:text]
     }
 
     # Check if high score
@@ -471,30 +697,32 @@ class Game
         text: "NEW HIGH SCORE!",
         size_enum: 4,
         alignment_enum: 1,
-        r: 255, g: 200, b: 0
+        **PALETTE[:gold]
       }
     end
 
     # Play Again button
     play_btn = { x: 440, y: 250, w: 180, h: 50 }
-    args.outputs.solids << play_btn.merge(r: 100, g: 100, b: 100)
+    args.outputs.solids << play_btn.merge(**PALETTE[:panel_edge], a: 180)
+    args.outputs.borders << play_btn.merge(**PALETTE[:accent], a: 220)
     args.outputs.labels << {
       x: 530, y: 285,
       text: "PLAY AGAIN",
       size_enum: 3,
       alignment_enum: 1,
-      r: 255, g: 255, b: 255
+      **PALETTE[:text]
     }
 
     # Menu button
     menu_btn = { x: 660, y: 250, w: 180, h: 50 }
-    args.outputs.solids << menu_btn.merge(r: 100, g: 100, b: 100)
+    args.outputs.solids << menu_btn.merge(**PALETTE[:panel_edge], a: 180)
+    args.outputs.borders << menu_btn.merge(**PALETTE[:accent], a: 220)
     args.outputs.labels << {
       x: 750, y: 285,
       text: "MENU",
       size_enum: 3,
       alignment_enum: 1,
-      r: 255, g: 255, b: 255
+      **PALETTE[:text]
     }
   end
 
@@ -529,12 +757,10 @@ class Game
 
   def handle_input
     pos_changed = args.state.entities.first_entity(:position_changed)
-
-    args.outputs.debug << pos_changed.to_s
     player, _, pos, last_pos = args.state.entities.first_entity(:player, :position, :last_position)
 
     x_change = args.inputs.left_right
-    y_change = args.inputs.up_down
+    y_change = -args.inputs.up_down
 
 
     if (x_change != 0 || y_change != 0) && !pos_changed && can_move?(pos.x + x_change, pos.y + y_change)
@@ -542,6 +768,7 @@ class Game
       last_pos.y = pos.y
       pos.x += x_change
       pos.y += y_change
+      args.state.last_player_move_tick = args.state.tick_count
       args.state.player_step_count ||= 0
       args.state.player_step_count += 1
       args.state.entities << {
@@ -550,8 +777,8 @@ class Game
 
       dir_text = if x_change > 0 then "right"
                  elsif x_change < 0 then "left"
-                 elsif y_change > 0 then "up"
-                 elsif y_change < 0 then "down"
+                 elsif y_change > 0 then "down"
+                 elsif y_change < 0 then "up"
                  end
       log_message("Moved #{dir_text}") if dir_text
     elsif x_change == 0 && y_change == 0 && pos_changed
@@ -627,6 +854,9 @@ class Game
       to_delete.concat(ids)
     end
     args.state.entities.destroy *to_delete
+
+    args.state.map_h = room.length
+    args.state.map_w = room.first ? room.first.length : 0
     room.each_with_index do |row, y|
       row.chars.each_with_index do |char, x|
         spawn_floor(x, y)
