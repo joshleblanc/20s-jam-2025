@@ -503,8 +503,10 @@ class Game
 
     if health.amt <= 0
       log_message("You died!")
-      spawn_map(ROOMS.sample)
-      true
+      _, score = args.state.entities.first_entity(:score)
+      final_score = score ? score.amt : 0
+      end_game(final_score)
+      return true
     end
 
     false
@@ -680,6 +682,7 @@ class Game
     args.state.entities.each_entity(:timer) do |id, timer|
       timer.time_remaining -= 1
       if timer.time_remaining == 0
+        log_message("Time's up!")
         args.state.entities << {
           state_change: { to: :end_game }
         }
@@ -733,10 +736,15 @@ class Game
       **PALETTE[:bg]
     }
 
-    render_panel(220, 150, 840, 420, target: :screen)
+    main_x = 24
+    main_y = 150
+    main_w = 840
+    main_h = 420
+    main_cx = main_x + (main_w / 2)
+    render_panel(main_x, main_y, main_w, main_h, target: :screen)
 
     args.outputs.labels << {
-      x: 640, y: 520,
+      x: main_cx, y: 520,
       text: "GAME OVER",
       size_enum: 10,
       alignment_enum: 1,
@@ -744,17 +752,48 @@ class Game
     }
 
     args.outputs.labels << {
-      x: 640, y: 440,
+      x: main_cx, y: 440,
       text: "Score: #{args.state.last_score}",
       size_enum: 6,
       alignment_enum: 1,
       **PALETTE[:text]
     }
 
+    _, log = args.state.entities.first_entity(:log)
+    if log
+      log_x = 1280 - 24 - 360
+      log_y = 24
+      log_w = 360
+      log_h = 720 - 24 - 24
+      render_panel(log_x, log_y, log_w, log_h, target: :screen)
+      args.outputs.labels << {
+        x: log_x + 16,
+        y: log_y + log_h - 18,
+        text: "LOG",
+        size_enum: 2,
+        **PALETTE[:muted],
+        alignment_enum: 0,
+        vertical_alignment_enum: 2
+      }
+
+      max = 22
+      log.messages.last(max).reverse.each_with_index do |msg, i|
+        args.outputs.labels << {
+          x: log_x + 16,
+          y: log_y + log_h - 52 - (i * 24),
+          text: msg,
+          size_enum: 1,
+          **PALETTE[:text],
+          alignment_enum: 0,
+          vertical_alignment_enum: 2
+        }
+      end
+    end
+
     # Check if high score
     if args.state.highscores.sort.reverse.first == args.state.last_score
       args.outputs.labels << {
-        x: 640, y: 370,
+        x: main_cx, y: 370,
         text: "NEW HIGH SCORE!",
         size_enum: 4,
         alignment_enum: 1,
@@ -763,11 +802,11 @@ class Game
     end
 
     # Play Again button
-    play_btn = { x: 440, y: 250, w: 180, h: 50 }
+    play_btn = { x: main_cx - 200, y: 250, w: 180, h: 50 }
     args.outputs.solids << play_btn.merge(**PALETTE[:panel_edge], a: 180)
     args.outputs.borders << play_btn.merge(**PALETTE[:accent], a: 220)
     args.outputs.labels << {
-      x: 530, y: 285,
+      x: play_btn[:x] + 90, y: 285,
       text: "PLAY AGAIN",
       size_enum: 3,
       alignment_enum: 1,
@@ -775,11 +814,11 @@ class Game
     }
 
     # Menu button
-    menu_btn = { x: 660, y: 250, w: 180, h: 50 }
+    menu_btn = { x: main_cx + 20, y: 250, w: 180, h: 50 }
     args.outputs.solids << menu_btn.merge(**PALETTE[:panel_edge], a: 180)
     args.outputs.borders << menu_btn.merge(**PALETTE[:accent], a: 220)
     args.outputs.labels << {
-      x: 750, y: 285,
+      x: menu_btn[:x] + 90, y: 285,
       text: "MENU",
       size_enum: 3,
       alignment_enum: 1,
