@@ -1,0 +1,27 @@
+* Log started at 2025/12/15 12:16:54
+* DragonRuby Game Toolkit
+*   Version: 6.38
+*   Tier: Pro
+*   GIT Hash: 3285b714da63a0b3638e32912ca522f25005393f
+*   Build Date: Oct 18 2025 16:58:31
+* Platform: Windows
+- Starting publish for game in directory '20s-jam-2025'
+! Failed to load '20s-jam-2025/metadata/game_metadata.txt'
+! 
+! 
+! We're having a problem with your game's metadata.
+! Please make sure that 20s-jam-2025\metadata\game_metadata.txt exists
+!  and looks something like this:
+! 
+! devid=myname
+! devtitle=My Name
+! gameid=mygame
+! gametitle=My Game
+! version=0.1
+! icon=metadata/icon.png
+! 
+! 
+! 
+! Publishing failed!
+! 
+* Logging shutting down
