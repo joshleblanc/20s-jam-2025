@@ -464,7 +464,7 @@ class Game
         health = args.state.entities.get_component(player, :health)
         next unless health
         health.amt = 3
-        args.state.entities.destroy(id)
+        ids_to_destroy << id
       end
     end
 
