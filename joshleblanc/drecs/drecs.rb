@@ -84,6 +84,8 @@ module Drecs
       @archetypes = {} # { [Component Classes Signature] => Archetype }
       @entity_locations = {} # { entity_id => { archetype:, row: } }
       @signature_cache = {} # Cache for normalized signatures
+
+      @deferred = []
     end
 
     # Creates a new entity with the given components.
@@ -106,6 +108,15 @@ module Drecs
       @entity_locations[entity_id] = { archetype: archetype, row: row }
 
       entity_id
+    end
+    
+    def defer(&blk)
+      @deferred << blk
+    end
+
+    def flush_defer!
+      @deferred.each { _1.call(self) }
+      @deferred.clear
     end
 
     # Alias for spawn using the << operator for a more fluid API
@@ -349,6 +360,8 @@ module Drecs
           yield(entity_id, *components)
         end
       end
+
+      flush_defer!
     end
 
     # Finds the first entity that has the specified components.

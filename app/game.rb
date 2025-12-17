@@ -429,31 +429,29 @@ class Game
     player, _, pos_a, last_pos = args.state.entities.first_entity(:player, :position, :last_position)
     return unless player
 
-    ids_to_destroy = []
-
     args.state.entities.each_entity(:position, :char, :type) do |id, pos_b, char, type|
       next if id == player
       next unless pos_b.x == pos_a.x && pos_b.y == pos_a.y
 
       if char == "T" && !args.state.entities.has_component?(id, :triggered)
-        args.state.entities.add_component(id, :triggered, true)
+        args.state.entities.defer { _1.add_component(id, :triggered, true) }
         log_message("Triggered a trap!")
         damage_player(1)
       elsif enemy_type?(type)
         health = args.state.entities.get_component(id, :health)
         next unless health
         if !damage_player(1) && damage_enemy(id, health)
-          ids_to_destroy << id
+          args.state.entities.defer { _1.destroy(id) }
         end
       elsif char == "k"
         _, inventory = args.state.entities.first_entity(:inventory)
-        args.state.entities.destroy(id)
+        args.state.entities.defer { _1.destroy(id) }
         inventory << :key
         log_message("Picked up a key.")
       elsif char == "t"
         _, score = args.state.entities.first_entity(:score)
         score.amt += 1
-        args.state.entities.destroy(id)
+        args.state.entities.defer { _1.destroy(id) }
         log_message("Found treasure!")
       elsif char == ">"
         log_message("Found the exit!")
@@ -464,12 +462,9 @@ class Game
         health = args.state.entities.get_component(player, :health)
         next unless health
         health.amt = 3
-        ids_to_destroy << id
+        args.state.entities.defer { _1.destroy(id) }
       end
     end
-
-    args.state.entities.destroy(*ids_to_destroy) unless ids_to_destroy.empty?
-
   end
 
   def next_level
@@ -633,7 +628,7 @@ class Game
       next if args.state.entities.has_component?(id, :revealed)
 
       if (pos_a.x - pos_b.x).abs < 2 && (pos_a.y - pos_b.y).abs < 2
-        args.state.entities.add_component(id, :revealed, true)
+        args.state.entities.defer { _1.add_component(id, :revealed, true) }
       end
     end
   end
@@ -691,16 +686,14 @@ class Game
   end
 
   def handle_state_change
-    ids_to_remove = []
     args.state.entities.each_entity(:state_change) do |id, state_change|
-      ids_to_remove << id
+      args.state.entities.defer { _1.destroy(id) }
       if state_change.to == :end_game
         _, score = args.state.entities.first_entity(:score)
         final_score = score ? score.amt : 0
         end_game(final_score)
       end
     end
-    args.state.entities.destroy *ids_to_remove
   end
 
   def start_game
@@ -840,14 +833,14 @@ class Game
     if args.inputs.mouse.click
       mouse = args.inputs.mouse
 
-      play_btn = { x: 440, y: 250, w: 180, h: 50 }
+      play_btn = { x: 244, y: 250, w: 180, h: 50 }
       if mouse.x >= play_btn[:x] && mouse.x <= play_btn[:x] + play_btn[:w] &&
          mouse.y >= play_btn[:y] && mouse.y <= play_btn[:y] + play_btn[:h]
         start_game
         return
       end
 
-      menu_btn = { x: 660, y: 250, w: 180, h: 50 }
+      menu_btn = { x: 464, y: 250, w: 180, h: 50 }
       if mouse.x >= menu_btn[:x] && mouse.x <= menu_btn[:x] + menu_btn[:w] &&
          mouse.y >= menu_btn[:y] && mouse.y <= menu_btn[:y] + menu_btn[:h]
         args.state.game_state = :menu
