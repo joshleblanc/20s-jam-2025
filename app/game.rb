@@ -148,6 +148,10 @@ class Game
 
   attr_gtk
 
+  def world
+    args.state.entities
+  end
+
   def tick
     init_menu if args.state.tick_count == 0
 
@@ -317,13 +321,13 @@ class Game
     render_panel(o[:x] - 12, o[:y] - 12, o[:w] + 24, o[:h] + 24)
 
     revealed = {}
-    args.state.entities.each_entity(:position, :revealed) do |_, pos, _|
+    world.each_entity(:position, :revealed) do |_, pos, _|
       revealed[[pos.x, pos.y]] = true
     end
 
     cells = {}
-    args.state.entities.each_entity(:position, :char, :type) do |id, pos, char, type|
-      next if char == "T" && !args.state.entities.has_component?(id, :triggered)
+    world.each_entity(:position, :char, :type) do |id, pos, char, type|
+      next if char == "T" && !world.has_component?(id, :triggered)
       key = [pos.x, pos.y]
 
       prio = ENTITY_DRAW_PRIORITY[type] || 0
@@ -352,7 +356,7 @@ class Game
       end
     end
 
-    player_id, _, player_pos = args.state.entities.first_entity(:player, :position)
+    player_id, _, player_pos = world.first_entity(:player, :position)
     player_bob_y = 0
     if player_id
       dt = args.state.last_player_move_tick ? (args.state.tick_count - args.state.last_player_move_tick) : 999
@@ -426,32 +430,32 @@ class Game
   end
 
   def process_hit
-    player, _, pos_a, last_pos = args.state.entities.first_entity(:player, :position, :last_position)
+    player, _, pos_a, last_pos = world.first_entity(:player, :position, :last_position)
     return unless player
 
-    args.state.entities.each_entity(:position, :char, :type) do |id, pos_b, char, type|
+    world.each_entity(:position, :char, :type) do |id, pos_b, char, type|
       next if id == player
       next unless pos_b.x == pos_a.x && pos_b.y == pos_a.y
 
-      if char == "T" && !args.state.entities.has_component?(id, :triggered)
-        args.state.entities.defer { _1.add_component(id, :triggered, true) }
+      if char == "T" && !world.has_component?(id, :triggered)
+        world.defer { _1.add_component(id, :triggered, true) }
         log_message("Triggered a trap!")
         damage_player(1)
       elsif enemy_type?(type)
-        health = args.state.entities.get_component(id, :health)
+        health = world.get_component(id, :health)
         next unless health
         if !damage_player(1) && damage_enemy(id, health)
-          args.state.entities.defer { _1.destroy(id) }
+          world.defer { _1.destroy(id) }
         end
       elsif char == "k"
-        _, inventory = args.state.entities.first_entity(:inventory)
-        args.state.entities.defer { _1.destroy(id) }
+        _, inventory = world.first_entity(:inventory)
+        world.defer { _1.destroy(id) }
         inventory << :key
         log_message("Picked up a key.")
       elsif char == "t"
-        _, score = args.state.entities.first_entity(:score)
+        _, score = world.first_entity(:score)
         score.amt += 1
-        args.state.entities.defer { _1.destroy(id) }
+        world.defer { _1.destroy(id) }
         log_message("Found treasure!")
       elsif char == ">"
         log_message("Found the exit!")
@@ -459,16 +463,16 @@ class Game
         return
       elsif char == "P"
         log_message("Found a potion!")
-        health = args.state.entities.get_component(player, :health)
+        health = world.get_component(player, :health)
         next unless health
         health.amt = 3
-        args.state.entities.defer { _1.destroy(id) }
+        world.defer { _1.destroy(id) }
       end
     end
   end
 
   def next_level
-    player_id, _, health, score, inventory = args.state.entities.first_entity(:player, :health, :score, :inventory)
+    player_id, _, health, score, inventory = world.first_entity(:player, :health, :score, :inventory)
 
     saved_health = health.amt
     saved_score = score.amt
@@ -477,7 +481,7 @@ class Game
     spawn_map(ROOMS.sample)
     log_message("Entered a new room.")
 
-    new_player_id, _, new_health, new_score, new_inventory = args.state.entities.first_entity(:player, :health, :score, :inventory)
+    new_player_id, _, new_health, new_score, new_inventory = world.first_entity(:player, :health, :score, :inventory)
 
     if new_player_id
       new_health.amt = saved_health
@@ -486,7 +490,7 @@ class Game
   end
 
   def damage_player(amount)
-    player, _, pos, last_pos, health = args.state.entities.first_entity(:player, :position, :last_position, :health)
+    player, _, pos, last_pos, health = world.first_entity(:player, :position, :last_position, :health)
     return unless player
 
     health.amt -= amount
@@ -498,7 +502,7 @@ class Game
 
     if health.amt <= 0
       log_message("You died!")
-      _, score = args.state.entities.first_entity(:score)
+      _, score = world.first_entity(:score)
       final_score = score ? score.amt : 0
       end_game(final_score)
       return true
@@ -508,7 +512,7 @@ class Game
   end
 
   def render_health
-    id, _, health = args.state.entities.first_entity(:player, :health)
+    id, _, health = world.first_entity(:player, :health)
     return unless id
 
     x = 24
@@ -526,7 +530,7 @@ class Game
   end
 
   def render_score
-    id, score = args.state.entities.first_entity(:score)
+    id, score = world.first_entity(:score)
     return unless id
 
     text = "SCORE  #{score.amt}"
@@ -546,7 +550,7 @@ class Game
   end
 
   def render_inventory
-    player, inventory = args.state.entities.first_entity(:inventory)
+    player, inventory = world.first_entity(:inventory)
     return unless player
 
     x = 24
@@ -569,7 +573,7 @@ class Game
   end
 
   def render_log
-    _, log = args.state.entities.first_entity(:log)
+    _, log = world.first_entity(:log)
     return unless log
 
     x = 1280 - 24 - 360
@@ -603,12 +607,12 @@ class Game
   end
 
   def log_message(text)
-    _, log = args.state.entities.first_entity(:log)
+    _, log = world.first_entity(:log)
     log.messages << text
   end
 
   def render_target
-    _, shake = args.state.entities.first_entity(:screen_shake)
+    _, shake = world.first_entity(:screen_shake)
     x = 0
     y = 0
     if shake
@@ -622,20 +626,20 @@ class Game
   end
 
   def reveal_tiles
-    _, _, pos_a = args.state.entities.first_entity(:player, :position)
+    _, _, pos_a = world.first_entity(:player, :position)
 
-    args.state.entities.each_entity(:position) do |id, pos_b|
-      next if args.state.entities.has_component?(id, :revealed)
+    world.each_entity(:position) do |id, pos_b|
+      next if world.has_component?(id, :revealed)
 
       if (pos_a.x - pos_b.x).abs < 2 && (pos_a.y - pos_b.y).abs < 2
-        args.state.entities.defer { _1.add_component(id, :revealed, true) }
+        world.defer { _1.add_component(id, :revealed, true) }
       end
     end
   end
 
   def render_static_map_stuff
-    args.state.entities.each_entity(:position, :char, :revealed) do |id, pos, char, revealed|
-      next if char == "T" && !args.state.entities.has_component?(id, :triggered)
+    world.each_entity(:position, :char, :revealed) do |id, pos, char, revealed|
+      next if char == "T" && !world.has_component?(id, :triggered)
       args.outputs[:world].labels << {
         x: pos.x * ENTITY_W,
         y: pos.y * ENTITY_H,
@@ -651,7 +655,7 @@ class Game
 
 
   def render_timer
-    args.state.entities.each_entity(:timer) do |_, timer|
+    world.each_entity(:timer) do |_, timer|
       time_text = timer.time_remaining.to_s
       tw, _th = args.gtk.calcstringbox(time_text, 6)
       x = (1280 / 2) - (tw / 2)
@@ -674,11 +678,11 @@ class Game
 
   def process_timer
     return unless args.state.tick_count % 60 == 0
-    args.state.entities.each_entity(:timer) do |id, timer|
+    world.each_entity(:timer) do |id, timer|
       timer.time_remaining -= 1
       if timer.time_remaining == 0
         log_message("Time's up!")
-        args.state.entities << {
+        world << {
           state_change: { to: :end_game }
         }
       end
@@ -686,10 +690,10 @@ class Game
   end
 
   def handle_state_change
-    args.state.entities.each_entity(:state_change) do |id, state_change|
-      args.state.entities.defer { _1.destroy(id) }
+    world.each_entity(:state_change) do |id, state_change|
+      world.defer { _1.destroy(id) }
       if state_change.to == :end_game
-        _, score = args.state.entities.first_entity(:score)
+        _, score = world.first_entity(:score)
         final_score = score ? score.amt : 0
         end_game(final_score)
       end
@@ -752,7 +756,7 @@ class Game
       **PALETTE[:text]
     }
 
-    _, log = args.state.entities.first_entity(:log)
+    _, log = world.first_entity(:log)
     if log
       log_x = 1280 - 24 - 360
       log_y = 24
@@ -849,8 +853,8 @@ class Game
   end
 
   def handle_input
-    pos_changed = args.state.entities.first_entity(:position_changed)
-    player, _, pos, last_pos = args.state.entities.first_entity(:player, :position, :last_position)
+    pos_changed = world.first_entity(:position_changed)
+    player, _, pos, last_pos = world.first_entity(:player, :position, :last_position)
 
     x_change = args.inputs.left_right
     y_change = -args.inputs.up_down
@@ -861,7 +865,7 @@ class Game
       target_y = pos.y + y_change
 
       door_id = nil
-      args.state.entities.each_entity(:position, :char) do |id, dpos, char|
+      world.each_entity(:position, :char) do |id, dpos, char|
         if char == "D" && dpos.x == target_x && dpos.y == target_y
           door_id = id
           break
@@ -869,10 +873,10 @@ class Game
       end
 
       if door_id
-        inventory = args.state.entities.get_component(player, :inventory)
+        inventory = world.get_component(player, :inventory)
         if inventory && inventory.include?(:key)
           inventory.delete_at(inventory.index(:key))
-          args.state.entities.destroy(door_id)
+          world.destroy(door_id)
           log_message("Unlocked a door.")
         end
       end
@@ -886,7 +890,7 @@ class Game
       args.state.last_player_move_tick = args.state.tick_count
       args.state.player_step_count ||= 0
       args.state.player_step_count += 1
-      args.state.entities << {
+      world << {
         position_changed: true
       }
 
@@ -897,12 +901,12 @@ class Game
                  end
       log_message("Moved #{dir_text}") if dir_text
     elsif x_change == 0 && y_change == 0 && pos_changed
-      args.state.entities.destroy(pos_changed.first)
+      world.destroy(pos_changed.first)
     end
   end
 
   def can_move?(x, y)
-    args.state.entities.each_entity(:position, :char) do |_, pos, char|
+    world.each_entity(:position, :char) do |_, pos, char|
       if (char == "#" || char == "D") && pos.x == x && pos.y == y
         return false
       end
@@ -915,7 +919,7 @@ class Game
     last_processed = args.state.last_enemy_step_processed || 0
     return if current_step == last_processed
 
-    args.state.entities.each_entity(:position, :type, :health) do |id, pos, type, health|
+    world.each_entity(:position, :type, :health) do |id, pos, type, health|
       next if health.amt <= 0
       case type
       when :bat
@@ -955,7 +959,7 @@ class Game
   def damage_enemy(enemy_id, health)
     health.amt -= 1
     if health.amt <= 0
-      _, score = args.state.entities.first_entity(:score)
+      _, score = world.first_entity(:score)
       score.amt += 1 if score
       log_message("Defeated an enemy!")
       return true
@@ -965,10 +969,10 @@ class Game
 
   def spawn_map(room)
     to_delete = []
-    args.state.entities.query(:position) do |ids, _|
+    world.query(:position) do |ids, _|
       to_delete.concat(ids)
     end
-    args.state.entities.destroy *to_delete
+    world.destroy *to_delete
 
     args.state.map_h = room.length
     args.state.map_w = room.first ? room.first.length : 0

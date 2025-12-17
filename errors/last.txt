@@ -1,23 +1,21 @@
 * EXCEPTION:
-* ERROR - :clear! method missing on ~Array~.
+* ERROR - :- method missing on ~GTK::OpenEntity~.
 
-#+begin_src ~Array#inspect~
-[]
-#+end_src ~Array#inspect~
+#+begin_src ~GTK::OpenEntity#inspect~
+{:entity_id=>1, :entity_name=>:damage_flash_frames, :entity_keys_by_ref=>{}, :__thrash_count__=>{}, :messages=>{:entity_id=>2, :entity_name=>:messages, :entity_keys_by_ref=>{}}}
+#+end_src ~GTK::OpenEntity#inspect~
 
-** Did you mean?
-Here's a list of methods that kind of look like :clear!.
-*** :clear
+
 
 The method named
-  :clear!
-doesn't exist on [Array, #<Class:#<Array:0x22e5656a100>>, Enumerable].
+  :-
+with args
+  [1]
+doesn't exist on [GTK::OpenEntity].
 
 (suggestions above)
 ** Backtrace:
-*** joshleblanc/drecs/drecs.rb:120:in flush_defer!
-*** joshleblanc/drecs/drecs.rb:365:in each_entity
-*** app/game.rb:432:in process_hit
-*** app/game.rb:255:in tick_game
-*** app/game.rb:160:in tick
+*** app/game.rb:278:in process_visual_fx
+*** app/game.rb:261:in tick_game
+*** app/game.rb:164:in tick
 *** app/main.rb:13:in tick
